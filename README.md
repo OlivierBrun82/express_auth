@@ -131,7 +131,8 @@ express_auth/
 │  │  └─ auth.middleware.js
 │  ├─ routes/
 │  │  └─ auth.routes.js
-│  └─ services/   (répertoire prêt pour de la logique métier supplémentaire)
+│  └─ services/
+│     └─ auth.service.js
 └─ README.md
 ```
 
@@ -139,7 +140,7 @@ express_auth/
 - **`src/server.js`** : point d'entrée qui teste la connexion MySQL puis lance le serveur.
 - **`src/config/env.js`** : centralisation et validation des variables d'environnement.
 - **`src/db/index.js`** : connexion MySQL (`mysql2`) + fonction `testConnection` + `pool` exporté.
-- **`src/controllers/authController.js`** : logique métier pour `register`, `login`, `profile`.
+- **`src/controllers/authController.js`** : contrôleurs HTTP pour `register`, `login`, `profile` (appellent la couche service si nécessaire).
 - **`src/middlewares/auth.middleware.js`** : middleware `authenticate` qui vérifie le JWT et charge l'utilisateur.
 - **`src/routes/auth.routes.js`** : définition des routes d'authentification.
 
@@ -180,11 +181,22 @@ express_auth/
 ### 8.4 `src/controllers/authController.js`
 
 - **`registerController`**
-  - Récupère `email` et `password` dans `req.body`.
-  - Valide la présence des champs (sinon `400`).
-  - Hash le mot de passe avec `bcrypt.hash(password, 10)`.
-  - Insère l'utilisateur dans la table `user` (`INSERT INTO user (email, password) VALUES (?, ?)`).
-  - Renvoie `201` avec `success: true` et l'`insertId` de l'utilisateur créé.
+  - Récupère les données du body de la requête (`req.body`).
+  - Appelle la fonction de service `register` définie dans `src/services/auth.service.js`.
+  - Renvoie `201` avec un JSON du type :
+
+    ```json
+    {
+      "success": true,
+      "message": "user créé",
+      "data": {
+        "id": 1,
+        "email": "user@example.com",
+        "created_at": "2025-01-01T12:00:00.000Z"
+      }
+    }
+    ```
+
 - **`loginController`**
   - Récupère `email` / `password` dans `req.body`.
   - Recherche l'utilisateur par email (`SELECT * FROM user WHERE email = ?`).
@@ -195,9 +207,31 @@ express_auth/
   - Renvoie un JSON `{ token: <jwt> }`.
 - **`profileController`**
   - Suppose que `req.user` est déjà rempli par le middleware `authenticate`.
-  - Renvoie un JSON `{ user: req.user }`.
+  - Renvoie un JSON `{ "user": req.user }`.
 
-### 8.5 `src/middlewares/auth.middleware.js`
+### 8.5 `src/services/auth.service.js`
+
+- **`register({ email, password })`**
+  - Valide la présence de `email` et `password`.  
+    - En cas de champs manquants, lève une erreur avec `status = 400` et le message `"email et mdp obligatoire"`.
+  - Hash le mot de passe avec `bcrypt.hash(password, 10)`.
+  - Insère l'utilisateur dans la table `user` :
+
+    ```sql
+    INSERT INTO user (email, password) VALUES (?, ?)
+    ```
+
+  - Retourne un objet utilisateur minimal :
+
+    ```json
+    {
+      "id": 1,
+      "email": "user@example.com",
+      "created_at": "2025-01-01T12:00:00.000Z"
+    }
+    ```
+
+### 8.6 `src/middlewares/auth.middleware.js`
 
 - Récupère le header `Authorization`.
 - Extrait le token (format attendu : `Bearer <token>`).
@@ -246,13 +280,17 @@ Toutes les routes d'authentification sont préfixées par `/api/auth`.
 
   ```json
   {
-    "message": "Utilisateur créé avec succès",
+    "message": "user créé",
     "success": true,
-    "data": 1
+    "data": {
+      "id": 1,
+      "email": "user@example.com",
+      "created_at": "2025-01-01T12:00:00.000Z"
+    }
   }
   ```
 
-  où `data` est l'`id` de l'utilisateur créé.
+  où `data` contient les informations de base de l'utilisateur créé.
 
 #### 9.2.2 Connexion
 
