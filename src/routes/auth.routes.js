@@ -2,10 +2,10 @@
 import { Router } from 'express';
 
 // import de nos contrôleurs
-import { registerController, loginController, ProfileController } from '../controllers/authController.js';
+import { registerController, loginController, profileController } from '../controllers/authController.js';
 
 // import de notre logique d'authentification
-
+import { authenticate } from '../middlewares/auth.middleware.js';
 
 const router = Router();
 
@@ -14,7 +14,7 @@ router.post('/register', registerController);
 // route pour se connecter
 router.post('/login', loginController);
 // route pour afficher son profil
-router.get('/profile', /*authenticate,*/ ProfileController);
+router.get('/profil', authenticate, profileController);
 
 
 export default router;
